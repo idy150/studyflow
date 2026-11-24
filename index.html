@@ -4,20 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>StudyFlow · Ton assistant d'étude</title>
-  <meta name="description" content="StudyFlow organise tes cours, tes séries d'exercices et ton emploi du temps, avec des rappels intelligents." />
-  <meta name="theme-color" content="#4f46e5" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>" />
+  <meta name="description" content="StudyFlow organise tes cours, tes TP/TD, tes devoirs et ton emploi du temps, avec des résumés de cours et des rappels intelligents." />
+  <meta name="theme-color" content="#16131f" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%235bb8ec'/><stop offset='1' stop-color='%236c4cf5'/></linearGradient></defs><rect width='24' height='24' rx='6' fill='url(%23g)'/><path d='M20 10 12 6 4 10l8 4z M7.5 11.5v3.5c2.5 2 6.5 2 9 0v-3.5' fill='none' stroke='white' stroke-width='1.8' stroke-linejoin='round'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="#/">🎓 <span>StudyFlow</span></a>
-    <nav>
-      <a href="#/" data-nav="dashboard">🏠 <span>Tableau de bord</span></a>
-      <a href="#/matieres" data-nav="matieres">📚 <span>Mes matières</span></a>
-      <a href="#/planning" data-nav="planning">📅 <span>Emploi du temps</span></a>
-      <a href="#/parametres" data-nav="parametres">⚙️ <span>Paramètres</span></a>
-    </nav>
+    <a class="brand" href="#/"><span class="logo" id="logo"></span>StudyFlow</a>
+    <nav id="nav"></nav>
     <div class="sidebar-foot" id="clock"></div>
   </aside>
 

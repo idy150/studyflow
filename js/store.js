@@ -11,7 +11,16 @@ const defaults = () => ({
   settings: { apiKey: '', model: 'claude-sonnet-5-5', notifications: false, leads: [60, 15], lang: 'fr' },
   notified: {},    // clés de rappels déjà envoyés
   activity: {},    // 'YYYY-MM-DD' -> nombre d'actions (pour la série de jours)
+  plan: {},        // {trialStart, premiumUntil}
+  focus: {},       // 'YYYY-MM-DD' -> minutes de concentration
 });
+
+// Anciennes versions : emojis → icônes
+const LEGACY = { '🐍': 'code', '🗄️': 'database', '📐': 'sigma', '🌐': 'globe', '🧮': 'sigma', '⚛️': 'atom', '🧪': 'flask', '📖': 'book', '💻': 'cpu', '🧬': 'dna', '📊': 'chart', '🏛️': 'landmark', '🗣️': 'languages', '🎨': 'palette' };
+function migrate(s) {
+  for (const sub of s.subjects || []) if (!sub.icon) sub.icon = LEGACY[sub.emoji] || 'book';
+  return s;
+}
 
 let state = load();
 
@@ -21,7 +30,7 @@ function load() {
     if (!raw) return defaults();
     const d = defaults();
     const s = JSON.parse(raw);
-    return { ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) } };
+    return migrate({ ...d, ...s, settings: { ...d.settings, ...(s.settings || {}) } });
   } catch {
     return defaults();
   }
@@ -60,7 +69,7 @@ export function update(fn) {
 
 export function replaceAll(newState) {
   const d = defaults();
-  state = { ...d, ...newState, settings: { ...d.settings, ...(newState.settings || {}) } };
+  state = migrate({ ...d, ...newState, settings: { ...d.settings, ...(newState.settings || {}) } });
   save();
 }
 

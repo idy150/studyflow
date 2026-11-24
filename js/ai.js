@@ -54,12 +54,12 @@ const clip = (t) => (t.length > MAX ? t.slice(0, MAX) + '\n[... texte tronqué .
 
 export function analyzeCourse(text, subject, lang) {
   return askJSON({
-    maxTokens: 6000,
+    maxTokens: 10000,
     system: `${TUTOR}\nTu analyses un support de cours et tu produis UNIQUEMENT un objet JSON valide, sans texte autour. ${langInstruction(lang)}`,
     prompt: `Matière : ${subject}
 Analyse ce cours et renvoie ce JSON :
 {
- "summary": "résumé clair en 5 à 10 phrases",
+ "summary": "RÉSUMÉ DÉTAILLÉ en Markdown (500 à 1000 mots) : une section ### par grande partie du cours, dans l'ordre du cours ; pour chaque partie, les idées essentielles expliquées clairement, les mots importants en **gras**, des listes à puces et un court exemple quand c'est utile. Ne recopie pas le cours : reformule pour qu'un étudiant puisse réviser uniquement avec ce résumé.",
  "keyPoints": ["notions à retenir absolument"],
  "formulas": [{"formula": "formule", "meaning": "ce qu'elle signifie / variables"}],
  "codes": [{"code": "extrait de code important", "language": "python|sql|...", "explanation": "explication ligne par ligne, courte"}],
@@ -129,5 +129,25 @@ export function explain(passage, mode, subject, lang) {
   return ask({
     system: `${TUTOR}\n${langInstruction(lang)}`,
     prompt: `Matière : ${subject}\n${EXPLAIN_MODES[mode].p}\n\nPASSAGE :\n${clip(passage)}`,
+  });
+}
+
+export const GEN_TYPES = {
+  td: { label: 'TD (exercices)', p: "un TD : exercices d'application progressifs (du plus simple au plus difficile) qui couvrent les notions clés du cours" },
+  tp: { label: 'TP (pratique)', p: "un TP : travail pratique guidé, en étapes concrètes (code, manipulation ou calcul selon la matière), avec un objectif clair et un résultat attendu" },
+  exam: { label: 'Examen blanc', p: "un examen blanc réaliste : questions de cours, exercices et un problème de synthèse, avec un barème sur 20 dans le titre de chaque exercice" },
+};
+
+export function generateSet(text, subject, { type = 'td', count = 4, level = 'moyen' }, lang) {
+  return askJSON({
+    maxTokens: 12000,
+    system: `${TUTOR}\nTu es aussi enseignant : tu crées des sujets de qualité, fidèles au cours fourni. Tu réponds UNIQUEMENT avec du JSON valide. ${langInstruction(lang)}`,
+    prompt: `Matière : ${subject}
+Crée ${GEN_TYPES[type].p}. Nombre d'exercices : ${count}. Niveau : ${level}.
+Chaque énoncé doit être complet et autonome. Chaque correction doit être détaillée, étape par étape, en Markdown (code dans des blocs \`\`\`).
+Format : {"title": "titre du ${type.toUpperCase()}", "exercises": [{"title": "Exercice 1 — sujet court", "statement": "énoncé complet", "solution": "correction détaillée"}]}
+
+COURS :
+${clip(text)}`,
   });
 }

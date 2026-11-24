@@ -39,9 +39,9 @@ Exercice 3
 
 export function loadDemo(store) {
   const { uid } = store;
-  const py = { id: uid(), name: 'Python', emoji: '🐍', color: '#4f46e5' };
-  const bd = { id: uid(), name: 'Bases de données', emoji: '🗄️', color: '#0891b2' };
-  const ma = { id: uid(), name: 'Mathématiques', emoji: '📐', color: '#d97706' };
+  const py = { id: uid(), name: 'Python', icon: 'code', color: '#6c4cf5' };
+  const bd = { id: uid(), name: 'Bases de données', icon: 'database', color: '#3aa6e0' };
+  const ma = { id: uid(), name: 'Mathématiques', icon: 'sigma', color: '#d98a1c' };
   const now = new Date();
   const inMin = (m) => {
     const d = new Date(now.getTime() + m * 60000);
@@ -67,6 +67,8 @@ export function loadDemo(store) {
     s.deadlines.push(
       { id: uid(), subjectId: bd.id, title: 'Devoir : requêtes JOIN', type: 'devoir', due: isoIn(2, 18), done: false },
       { id: uid(), subjectId: ma.id, title: 'Examen de Mathématiques', type: 'examen', due: isoIn(5, 9), done: false },
+      { id: uid(), subjectId: py.id, title: 'Rendre le TP 3 : fonctions et listes', type: 'tp', due: isoIn(1, 23), done: false },
+      { id: uid(), subjectId: ma.id, title: 'TD 4 : suites numériques', type: 'td', due: isoIn(9, 8), done: false },
     );
     s.docs.push(
       { id: coursId, subjectId: py.id, kind: 'cours', name: 'Chapitre 3 — Les fonctions', text: COURS_PYTHON, createdAt: Date.now(), analysis: localAnalysis(COURS_PYTHON), analysisMode: 'local' },

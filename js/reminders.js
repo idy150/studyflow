@@ -3,13 +3,22 @@ import { get, save, dayKey } from './store.js';
 
 export const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
+export const DEADLINE_TYPES = {
+  devoir: { label: 'Devoir', icon: 'pencil' },
+  tp: { label: 'TP', icon: 'flask' },
+  td: { label: 'TD', icon: 'clipboard' },
+  projet: { label: 'Projet', icon: 'briefcase' },
+  examen: { label: 'Examen', icon: 'alert' },
+  autre: { label: 'Autre', icon: 'clock' },
+};
+
 const toMin = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 };
 
 export function subjectOf(id) {
-  return get().subjects.find((s) => s.id === id) || { name: 'Matière supprimée', emoji: '📘', color: '#888' };
+  return get().subjects.find((s) => s.id === id) || { name: 'Matière supprimée', icon: 'book', color: '#888' };
 }
 
 /** Prochaine occurrence (Date) d'un cours hebdomadaire, à partir de maintenant. */
@@ -80,11 +89,11 @@ function latestCourse(subjectId) {
 /** Construit le message contextuel d'un cours qui approche. */
 export function classMessage(ev, start, now = new Date()) {
   const sub = subjectOf(ev.subjectId);
-  const parts = [`🔔 Ton cours de ${sub.name} commence ${relTime(start, now)}${ev.room ? ` (${ev.room})` : ''}.`];
+  const parts = [`Ton cours de ${sub.name} commence ${relTime(start, now)}${ev.room ? ` (${ev.room})` : ''}.`];
   const doc = latestCourse(ev.subjectId);
-  if (doc) parts.push(`📚 Révise « ${doc.name} » avant le cours.`);
+  if (doc) parts.push(`Révise « ${doc.name} » avant le cours.`);
   const pend = pendingExercises(ev.subjectId);
-  if (pend.length) parts.push(`📝 Tu as ${pend.length} exercice${pend.length > 1 ? 's' : ''} non terminé${pend.length > 1 ? 's' : ''} en ${sub.name}.`);
+  if (pend.length) parts.push(`Tu as ${pend.length} exercice${pend.length > 1 ? 's' : ''} non terminé${pend.length > 1 ? 's' : ''} en ${sub.name}.`);
   return parts;
 }
 
@@ -117,7 +126,7 @@ export function tick(now = new Date()) {
     if (s.notified[`${base}:${lead}`]) continue;
     leads.filter((L) => L >= lead).forEach((L) => mark(`${base}:${L}`));
     const sub = subjectOf(ev.subjectId);
-    notifyFn(`${sub.emoji} ${sub.name} · ${ev.start}`, classMessage(ev, occ.start, now).join('\n'));
+    notifyFn(`${sub.name} · ${ev.start}`, classMessage(ev, occ.start, now).join('\n'));
   }
 
   // 2) Devoirs / examens
@@ -132,10 +141,9 @@ export function tick(now = new Date()) {
     if (s.notified[`${base}:${lead}`]) continue;
     DEADLINE_LEADS.filter((L) => L >= lead).forEach((L) => mark(`${base}:${L}`));
     const sub = subjectOf(dl.subjectId);
-    const icon = dl.type === 'examen' ? '⚠️' : '📝';
-    const label = dl.type === 'examen' ? 'Examen' : dl.type === 'devoir' ? 'Devoir' : 'Échéance';
-    const extra = dl.type === 'examen' ? 'Lance une révision : relis tes fiches et refais les exercices non terminés.' : 'Pense à le terminer à temps.';
-    notifyFn(`${icon} ${label} de ${sub.name} ${relTime(due, now)}`, `${dl.title}\n${extra}`);
+    const label = (DEADLINE_TYPES[dl.type] || DEADLINE_TYPES.autre).label;
+    const extra = dl.type === 'examen' ? 'Lance une révision : relis ton résumé, tes fiches mémo et refais les exercices non terminés.' : `Date limite : ${due.toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.`;
+    notifyFn(`${label} de ${sub.name} ${relTime(due, now)}`, `${dl.title}\n${extra}`);
   }
 
   // 3) Résumé du matin (une fois par jour, à partir de 6 h)
@@ -145,7 +153,7 @@ export function tick(now = new Date()) {
     mark(`m:${today}`);
     if (cls.length) {
       notifyFn(
-        `☀️ Ton programme d'aujourd'hui`,
+        `Ton programme d'aujourd'hui`,
         cls.map((e) => `${e.start} · ${subjectOf(e.subjectId).name}`).join('\n'),
       );
     }

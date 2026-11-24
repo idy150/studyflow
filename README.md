@@ -1,6 +1,6 @@
 # 🎓 StudyFlow
 
-**Ton assistant d'étude intelligent** : cours analysés, exercices guidés, emploi du temps et rappels avant chaque cours.
+**Ton assistant d'étude intelligent** : résumés de cours détaillés, TP/TD corrigés, emploi du temps, échéances et rappels avant chaque cours.
 
 StudyFlow est un site 100 % statique (HTML, CSS, JavaScript) : il s'héberge gratuitement sur **GitHub Pages**, sans serveur ni base de données. Les données de chaque étudiant restent dans son propre navigateur.
 
@@ -10,7 +10,11 @@ StudyFlow est un site 100 % statique (HTML, CSS, JavaScript) : il s'héberge gra
 |---|---|
 | 🏠 **Tableau de bord** | Programme du jour, prochains cours, devoirs et examens, progression par matière, série de jours 🔥 |
 | 📚 **Matières** | Une fiche par matière avec ses cours, ses séries et ses échéances |
-| 📄 **Analyse de PDF** | Résumé, notions à retenir, définitions, formules, codes à connaître, questions d'examen et fiche de révision |
+| 📄 **Analyse de PDF** | Résumé détaillé par parties, notions à retenir, définitions, formules, codes à connaître, questions d'examen et fiche de révision |
+| 🃏 **Fiches mémo** | Cartes question/réponse générées à partir des définitions et formules |
+| 👑 **TP / TD corrigés (Premium)** | TD d'exercices, TP pratiques et examens blancs générés depuis le cours, avec corrections détaillées. Essai gratuit de 7 jours |
+| ⏰ **Échéances** | Devoirs, TP, TD, projets et examens avec compte à rebours (J-3, 5h…), filtres à venir / en retard / terminés |
+| ⏱️ **Concentration** | Minuteur 25/45/60 min, minutes comptées dans la journée |
 | 🧑‍🏫 **Explique-moi** | Sélectionne un passage : explication simple, niveau universitaire, exemple, exercice, quiz… en français, arabe ou anglais |
 | 📝 **Séries d'exercices** | Détection automatique des exercices d'un PDF, réponse de l'étudiant, correction qui explique l'erreur, 3 indices progressifs, solution seulement sur demande |
 | 📅 **Emploi du temps** | Semaine type, import rapide (« Lundi 08:00-10:00 Python, Amphi A »), devoirs et examens |
@@ -21,6 +25,12 @@ StudyFlow est un site 100 % statique (HTML, CSS, JavaScript) : il s'héberge gra
 
 - **Sans clé** : l'analyse locale repère automatiquement les formules, les blocs de code, les définitions et les mots-clés, et produit un résumé extractif.
 - **Avec une clé API Claude** (Paramètres → Intelligence artificielle) : résumé expliqué, explication des codes, vraies questions d'examen, correction des exercices, indices et mode « Explique-moi ». La clé est enregistrée uniquement dans le navigateur de l'étudiant et envoyée seulement à `api.anthropic.com`.
+
+## 👑 Offre Premium
+
+Les réglages (durée d'essai, prix, contact WhatsApp ou e-mail pour s'abonner) sont dans `js/config.js`.
+
+⚠️ Tant qu'il n'y a pas de serveur, l'essai et l'accès Premium sont gérés dans le navigateur de l'étudiant : c'est une vitrine de l'offre, pas un verrou sécurisé. Le vrai contrôle (comptes, paiement vérifié, clé IA côté serveur) est l'étape suivante.
 
 ## 🚀 Mettre le site en ligne (GitHub Pages)
 
@@ -45,6 +55,9 @@ python3 -m http.server 8000
 index.html          page unique
 css/style.css       design (clair/sombre, mobile)
 js/app.js           pages et navigation
+js/icons.js         icônes SVG
+js/plan.js          essai gratuit / Premium
+js/config.js        prix, durée d'essai, contact
 js/store.js         données (localStorage)
 js/analyze.js       lecture des PDF + analyse locale
 js/ai.js            appels à l'IA
