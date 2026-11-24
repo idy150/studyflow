@@ -1,12 +1,17 @@
 import * as store from './store.js';
 import * as AI from './ai.js';
 import * as Plan from './plan.js';
-import { CONFIG } from './config.js';
+import { CONFIG, cloudEnabled } from './config.js';
+import * as Cloud from './cloud.js';
 import { ic, badge, SUBJECT_ICONS, guessIcon } from './icons.js';
 import { extractText, localAnalysis, localSplitExercises } from './analyze.js';
 import { DAYS, upcoming, todaysClasses, relTime, subjectOf, tick, setNotifier, classMessage, DEADLINE_TYPES } from './reminders.js';
 
 const S = () => store.get();
+/** Lien pour activer l'IA : connexion (mode comptes) ou clé (mode simple). */
+const aiHref = () => (cloudEnabled() ? '#/compte' : '#/parametres');
+const aiCta = () => (cloudEnabled() ? 'Se connecter' : "Activer l'IA");
+const aiWhere = () => (cloudEnabled() ? `<a href="#/compte">connecte-toi</a> (gratuit)` : `ajoute ta clé dans <a href="#/parametres">Paramètres</a>`);
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const app = $('#app');
@@ -213,10 +218,33 @@ const NAV = [
   ['planning', '#/planning', 'calendar', 'Emploi du temps', 'Planning'],
   ['echeances', '#/echeances', 'clock', 'Échéances', 'Échéances'],
   ['premium', '#/premium', 'crown', 'Premium', 'Premium'],
+  ...(cloudEnabled() ? [['compte', '#/compte', 'user', 'Mon compte', 'Compte']] : []),
   ['parametres', '#/parametres', 'settings', 'Paramètres', 'Réglages'],
 ];
 $('#nav').innerHTML = NAV.map(([k, href, icon, label, short]) => `<a href="${href}" data-nav="${k}" class="${k === 'premium' ? 'nav-premium' : ''}">${ic(icon, 21)}<span class="long">${label}</span><span class="short">${short}</span></a>`).join('');
 $('#logo').innerHTML = ic('cap', 22);
+
+// ---------- Premium : boutons communs ----------
+const minPrice = () => {
+  const p = [...CONFIG.plans].sort((a, b) => a.days - b.days)[0];
+  return `${p.price} ${CONFIG.currency} / ${p.label}`;
+};
+
+function trialCta(st) {
+  if (st.kind === 'guest') return `<a class="btn ai lg" href="#/compte">${ic('user', 18)} Créer mon compte gratuit</a><p class="small muted">L'essai gratuit de ${CONFIG.trialDays} jours commence après l'inscription.</p>`;
+  if (st.kind === 'free') return `<button class="btn ai lg" id="trial">${ic('sparkles', 18)} Essayer gratuitement ${CONFIG.trialDays} jours</button>`;
+  if (st.kind === 'expired') return `<p><span class="pill danger">Ton essai gratuit est terminé</span></p><a class="btn ai lg" href="#/premium">${ic('crown', 18)} Passer à Premium</a>`;
+  return '';
+}
+
+function bindTrial() {
+  const b = $('#trial');
+  if (b) b.onclick = () => busy(b, async () => {
+    await Plan.startTrial();
+    toast('Essai Premium activé', `${CONFIG.trialDays} jours pour générer tes TP et TD. Ouvre un cours puis l'onglet « TP / TD corrigés ».`);
+    render();
+  }, 'Activation…');
+}
 
 // ---------- Vues ----------
 const views = {};
@@ -279,6 +307,7 @@ views.dashboard = () => {
       </div>
     </div>
     ${tip}
+    ${cloudEnabled() && !Cloud.user() ? `<div class="banner violet">${ic('user', 22)}<span class="grow">Crée ton compte gratuit pour débloquer l'IA : résumés détaillés, corrections, indices et ${CONFIG.trialDays} jours d'essai Premium.</span><a class="btn sm ai" href="#/compte/inscription">Créer mon compte</a></div>` : ''}
     ${!s.settings.notifications ? `<div class="banner">${ic('bell', 22)}<span class="grow">Active les notifications pour être prévenu avant tes cours et tes devoirs.</span><button class="btn sm primary" id="enable-notif">Activer</button></div>` : ''}
     ${st.kind === 'trial' ? `<div class="banner violet">${ic('crown', 22)}<span class="grow">Essai Premium : encore <b>${st.daysLeft} jour${st.daysLeft > 1 ? 's' : ''}</b> pour générer des TP et TD corrigés.</span><a class="btn sm ai" href="#/premium">Voir l'offre</a></div>` : ''}
 
@@ -432,7 +461,7 @@ views.matiere = (id, tab = 'cours') => {
           ${badge({ icon: 'upload', color: '#6c4cf5' }, 56)}
           <b>${isSerie ? 'Dépose ta série, ton TP ou ton TD' : 'Dépose ton cours'} (PDF ou texte)</b>
           glisse le fichier ici ou clique pour le choisir
-          <div class="small" style="margin-top:.5rem">${AI.hasAI() ? `<span class="pill violet">${ic('sparkles', 13)} Analyse par IA activée</span>` : `<span class="pill">Analyse automatique · ajoute une clé IA dans Paramètres pour un résumé détaillé</span>`}</div>
+          <div class="small" style="margin-top:.5rem">${AI.hasAI() ? `<span class="pill violet">${ic('sparkles', 13)} Analyse par IA activée</span>` : `<span class="pill">Analyse automatique · ${cloudEnabled() ? 'connecte-toi' : 'active l’IA'} pour un résumé détaillé</span>`}</div>
         </div>
         <input type="file" id="file" accept=".pdf,.txt,.md,.py,.sql,.c,.java,.js" hidden />
         <details style="margin-top:.85rem"><summary class="small muted" style="cursor:pointer">…ou colle le texte directement</summary>
@@ -612,7 +641,7 @@ views.doc = (id, tab = 'resume') => {
 
   if (tab === 'resume') {
     body.innerHTML = `
-      ${doc.analysisMode !== 'ai' ? `<div class="banner violet">${ic('sparkles', 22)}<span class="grow">Ceci est une analyse automatique. Pour un <b>résumé détaillé et expliqué</b> de tout le cours, ajoute ta clé IA dans Paramètres.</span>${AI.hasAI() ? '' : `<a class="btn sm ai" href="#/parametres">Activer l'IA</a>`}</div>` : ''}
+      ${doc.analysisMode !== 'ai' ? `<div class="banner violet">${ic('sparkles', 22)}<span class="grow">Ceci est une analyse automatique. Pour un <b>résumé détaillé et expliqué</b> de tout le cours, ${AI.hasAI() ? 'clique sur « Résumé détaillé par IA »' : aiWhere()}.</span>${AI.hasAI() ? '' : `<a class="btn sm ai" href="${aiHref()}">${aiCta()}</a>`}</div>` : ''}
       <div class="card"><h2>${ic('book')} Résumé du cours</h2>${md(a.summary)}</div>
       ${a.keyPoints?.length ? `<div class="card sky"><h2>${ic('target')} À retenir absolument</h2><div class="row">${a.keyPoints.map((k) => `<span class="pill" style="font-size:.85rem;padding:.3rem .8rem">${esc(k)}</span>`).join('')}</div></div>` : ''}
       <div class="grid grid-2">
@@ -663,7 +692,7 @@ views.doc = (id, tab = 'resume') => {
         <div class="row" style="margin:.85rem 0"><span class="small muted">Langue :</span>
           <div class="row" id="lang-pick">${LANGS.map(([v, l]) => `<button class="btn sm ${S().settings.lang === v ? 'is-active' : ''}" data-lang="${v}">${l}</button>`).join('')}</div>
         </div>
-        <div class="row">${Object.entries(AI.EXPLAIN_MODES).map(([k, m]) => `<button class="btn ai" data-mode="${k}">${m.label.replace(/^\S+\s/, '')}</button>`).join('')}</div>
+        <div class="row">${Object.entries(AI.EXPLAIN_MODES).map(([k, m]) => `<button class="btn ai" data-mode="${k}">${m.label}</button>`).join('')}</div>
         <div id="explain-out"></div>
       </div>`;
     sessionStorage.removeItem('sf:passage');
@@ -673,7 +702,7 @@ views.doc = (id, tab = 'resume') => {
       $$('[data-lang]').forEach((x) => x.classList.toggle('is-active', x === b));
     }));
     $$('[data-mode]').forEach((b) => (b.onclick = () => busy(b, async () => {
-      if (!AI.hasAI()) throw new Error("Le mode « Explique-moi » utilise l'IA : ajoute ta clé dans Paramètres.");
+      if (!AI.hasAI()) throw new Error(AI.missingMessage());
       const passage = $('#passage').value.trim();
       if (!passage) throw new Error("Colle d'abord un passage du cours.");
       const out = await AI.explain(passage, b.dataset.mode, sub.name, lang);
@@ -687,15 +716,9 @@ views.doc = (id, tab = 'resume') => {
         ${badge({ icon: 'crown', color: '#6c4cf5' }, 64)}
         <h2 style="justify-content:center;margin-top:1rem">TP et TD corrigés à partir de ton cours</h2>
         <p class="muted" style="max-width:520px;margin:0 auto 1.2rem">StudyFlow crée des TD d'exercices, des TP pratiques et des examens blancs fidèles à ce cours, avec une correction détaillée étape par étape.</p>
-        ${st.kind === 'free'
-          ? `<button class="btn ai lg" id="trial">${ic('sparkles', 18)} Essayer gratuitement ${CONFIG.trialDays} jours</button>`
-          : `<p><span class="pill danger">Ton essai gratuit est terminé</span></p><a class="btn ai lg" href="#/premium">${ic('crown', 18)} Passer à Premium</a>`}
-        <p class="small muted" style="margin-top:1rem">Ensuite ${esc(CONFIG.priceMonthly)}. Le résumé de cours, les fiches et les rappels restent gratuits.</p></div>`;
-      $('#trial')?.addEventListener('click', () => {
-        Plan.startTrial();
-        toast('Essai Premium activé', `${CONFIG.trialDays} jours pour générer tes TP et TD.`);
-        render();
-      });
+        ${trialCta(st)}
+        <p class="small muted" style="margin-top:1rem">Ensuite à partir de ${minPrice()}. Le résumé de cours, les fiches et les rappels restent gratuits.</p></div>`;
+      bindTrial();
     } else {
       const gens = S().docs.filter((d) => d.sourceDocId === id);
       body.innerHTML = `
@@ -709,7 +732,7 @@ views.doc = (id, tab = 'resume') => {
             <div><label>Niveau</label><select id="gen-level"><option value="facile">Facile</option><option value="moyen" selected>Moyen</option><option value="difficile">Difficile (niveau examen)</option></select></div>
           </div>
           <button class="btn ai lg" id="gen-go" style="margin-top:1.2rem">${ic('sparkles', 18)} Générer avec corrections</button>
-          ${!AI.hasAI() ? `<div class="banner warn small" style="margin-top:1rem">${ic('alert', 18)} La génération utilise l'IA : ajoute ta clé dans <a href="#/parametres">Paramètres</a>.</div>` : ''}
+          ${!AI.hasAI() ? `<div class="banner warn small" style="margin-top:1rem">${ic('alert', 18)} La génération utilise l'IA : ${aiWhere()}.</div>` : ''}
         </div>
         ${gens.length ? `<div class="card"><h2>${ic('list')} Déjà générés pour ce cours</h2><ul class="list">${gens.map((g) => `<li>${ic('sparkles', 18)}<span class="grow">${esc(g.name)}</span><a class="btn sm" href="#/matiere/${g.subjectId}/series">Ouvrir</a></li>`).join('')}</ul></div>` : ''}`;
       let type = 'td';
@@ -718,7 +741,7 @@ views.doc = (id, tab = 'resume') => {
         $$('[data-type]').forEach((x) => x.classList.toggle('is-active', x === b));
       }));
       $('#gen-go').onclick = (e) => busy(e.currentTarget, async () => {
-        if (!AI.hasAI()) throw new Error('Ajoute ta clé IA dans Paramètres pour générer des TP / TD.');
+        if (!AI.hasAI()) throw new Error(AI.missingMessage());
         if (!Plan.isPremium()) throw new Error('Ton accès Premium a expiré.');
         const res = await AI.generateSet(doc.text, sub.name, { type, count: Number($('#gen-count').value), level: $('#gen-level').value }, S().settings.lang);
         if (!res.exercises?.length) throw new Error("L'IA n'a pas produit d'exercices, réessaie.");
@@ -789,7 +812,7 @@ views.exo = (id) => {
         <span class="grow"></span>
         <button class="btn ${ex.status === 'done' ? 'done' : ''}" id="done">${ic('checkCircle', 18)} ${ex.status === 'done' ? 'Réussi' : 'Je l’ai réussi'}</button>
       </div>
-      ${!AI.hasAI() ? `<div class="banner warn small" style="margin-top:1rem">${ic('alert', 18)}<span>La correction et les indices utilisent l'IA (clé dans <a href="#/parametres">Paramètres</a>).${hasSol ? ' La solution de ce sujet est déjà disponible.' : ''} Ta réponse est sauvegardée automatiquement.</span></div>` : ''}
+      ${!AI.hasAI() ? `<div class="banner warn small" style="margin-top:1rem">${ic('alert', 18)}<span>La correction et les indices utilisent l'IA : ${aiWhere()}.${hasSol ? ' La solution de ce sujet est déjà disponible.' : ''} Ta réponse est sauvegardée automatiquement.</span></div>` : ''}
       ${ex.hints.map((h, i) => `<div class="feedback hint"><b>${ic('bulb', 18)} Indice ${i + 1}</b>${md(h)}</div>`).join('')}
       ${ex.feedback ? `<div class="feedback ai"><b>${ic('sparkles', 18)} Correction de ta réponse</b>${md(ex.feedback)}</div>` : ''}
       ${ex.solutionShown && hasSol ? `<div class="feedback solution"><b>${ic('checkCircle', 18)} Solution détaillée</b>${md(ex.solution)}</div>` : ''}
@@ -809,7 +832,7 @@ views.exo = (id) => {
   const saveAnswer = () => store.update((st) => (st.exercises.find((e) => e.id === id).answer = ans.value));
   const cur = () => S().exercises.find((e) => e.id === id);
   const requireAI = () => {
-    if (!AI.hasAI()) throw new Error('Ajoute ta clé IA dans Paramètres pour activer la correction.');
+    if (!AI.hasAI()) throw new Error(AI.missingMessage());
   };
 
   $('#check').onclick = (e) => busy(e.currentTarget, async () => {
@@ -1028,30 +1051,247 @@ Lundi 14:00-16:00 Mathématiques, Salle 12"></textarea>
 };
 
 // ---------- Premium ----------
-views.premium = () => {
+const fmtDay = (t) => new Date(t).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+const PAY_STATUS = { pending: ['warn', 'en attente de validation'], approved: ['ok', 'validé'], rejected: ['danger', 'refusé'] };
+
+views.premium = async () => {
   const st = Plan.status();
   const link = Plan.contactLink();
-  const free = ['Résumé de cours (automatique ou IA)', 'Fiches mémo et « Explique-moi »', 'Séries d’exercices avec correction et indices', 'Emploi du temps, échéances et rappels', 'Minuteur de concentration'];
-  const prem = ['Tout le gratuit', 'TD d’exercices générés à partir de tes cours', 'TP pratiques guidés, étape par étape', 'Examens blancs avec barème', 'Corrections détaillées de chaque exercice'];
+  const cloud = cloudEnabled();
+  const free = ['Résumé de cours', 'Fiches mémo et « Explique-moi »', 'Séries d’exercices avec correction et indices', 'Emploi du temps, échéances et rappels', 'Minuteur de concentration'];
+  const prem = ['Tout le gratuit', 'TD d’exercices générés à partir de tes cours', 'TP pratiques guidés, étape par étape', 'Examens blancs avec barème', 'Corrections détaillées de chaque exercice', `Jusqu'à ${CONFIG.quotaPremium} demandes IA par jour`];
+  const methods = CONFIG.paymentMethods.filter((m) => m.account);
+  const canPay = cloud && Cloud.user();
+
   app.innerHTML = `
     <div class="header"><h1>StudyFlow Premium</h1><div class="muted">Entraîne-toi avec des TP et TD corrigés, créés à partir de tes propres cours.</div></div>
-    ${st.kind === 'trial' ? `<div class="banner violet">${ic('crown', 22)}<span>Ton essai gratuit est actif : encore <b>${st.daysLeft} jour${st.daysLeft > 1 ? 's' : ''}</b> (jusqu'au ${new Date(st.until).toLocaleDateString('fr-FR')}).</span></div>` : ''}
+    ${st.kind === 'trial' ? `<div class="banner violet">${ic('crown', 22)}<span>Ton essai gratuit est actif : encore <b>${st.daysLeft} jour${st.daysLeft > 1 ? 's' : ''}</b> (jusqu'au ${fmtDay(st.until)}).</span></div>` : ''}
     ${st.kind === 'expired' ? `<div class="banner warn">${ic('alert', 22)}<span>Ton essai gratuit est terminé. Abonne-toi pour continuer à générer des TP et TD.</span></div>` : ''}
-    ${st.kind === 'premium' ? `<div class="banner">${ic('checkCircle', 22)}<span>Tu es Premium jusqu'au ${new Date(st.until).toLocaleDateString('fr-FR')}.</span></div>` : ''}
+    ${st.kind === 'premium' ? `<div class="banner">${ic('checkCircle', 22)}<span>Tu es Premium jusqu'au <b>${fmtDay(st.until)}</b>. Merci !</span></div>` : ''}
     <div class="grid grid-2">
-      <div class="card"><span class="pill">Gratuit</span><div class="price" style="margin-top:.6rem">0 MRU</div><div class="muted small">pour toujours</div>
+      <div class="card"><span class="pill">Gratuit</span><div class="price" style="margin-top:.6rem">0 ${CONFIG.currency}</div><div class="muted small">pour toujours${cloud ? ` · ${CONFIG.quotaFree} demandes IA par jour` : ''}</div>
         <ul class="features">${free.map((f) => `<li>${ic('check', 18)} ${f}</li>`).join('')}</ul></div>
-      <div class="card dark"><span class="pill violet">${ic('crown', 12)} Premium</span><div class="price" style="margin-top:.6rem">${esc(CONFIG.priceMonthly)}</div><div class="muted small">ou ${esc(CONFIG.priceYearly)}</div>
+      <div class="card dark"><span class="pill violet">${ic('crown', 12)} Premium</span>
+        <div class="row" style="margin-top:.6rem;gap:1.4rem">${CONFIG.plans.map((p) => `<div><div class="price" style="font-size:1.5rem">${p.price} ${CONFIG.currency}</div><div class="muted small">${p.label}</div></div>`).join('')}</div>
         <ul class="features">${prem.map((f) => `<li>${ic('check', 18)} ${f}</li>`).join('')}</ul>
-        ${st.kind === 'free' ? `<button class="btn ai lg" id="trial" style="width:100%">${ic('sparkles', 18)} Essayer gratuitement ${CONFIG.trialDays} jours</button>` : ''}
-        ${link ? `<a class="btn lg" href="${esc(link)}" target="_blank" rel="noopener" style="width:100%;margin-top:.6rem">${ic('phone', 18)} S'abonner</a>` : `<button class="btn lg" disabled style="width:100%;margin-top:.6rem">${ic('lock', 18)} Abonnement bientôt disponible</button>`}
+        <div style="text-align:center">${['guest', 'free'].includes(st.kind) ? trialCta(st) : ''}</div>
+        ${!cloud ? (link ? `<a class="btn lg" href="${esc(link)}" target="_blank" rel="noopener" style="width:100%;margin-top:.6rem">${ic('phone', 18)} S'abonner</a>` : `<button class="btn lg" disabled style="width:100%;margin-top:.6rem">${ic('lock', 18)} Abonnement bientôt disponible</button>`) : ''}
+      </div>
+    </div>
+    ${canPay ? `
+    <div class="card" id="pay-card">
+      <h2>${ic('phone')} M'abonner</h2>
+      ${methods.length ? `
+      <ol class="small" style="padding-left:1.2rem">
+        <li>Envoie le montant de la formule choisie avec ${methods.map((m) => `<b>${esc(m.label)}</b> au <b>${esc(m.account)}</b>`).join(', ou ')}.</li>
+        <li>Remplis le formulaire avec le <b>numéro de transaction</b> reçu par SMS.</li>
+        <li>Ton abonnement est activé dès que le paiement est vérifié (en général dans la journée).</li>
+      </ol>
+      <form id="f-pay">
+        <label>Formule</label>
+        <div class="row">${CONFIG.plans.map((p, i) => `<button type="button" class="btn ${i === 0 ? 'is-active' : ''}" data-plan="${p.id}">${p.label} · ${p.price} ${CONFIG.currency}</button>`).join('')}</div>
+        <input type="hidden" name="plan" value="${CONFIG.plans[0].id}" />
+        <div class="form-row">
+          <div><label>Moyen de paiement</label><select name="method">${methods.map((m) => `<option value="${m.id}">${esc(m.label)}</option>`).join('')}</select></div>
+          <div><label>Numéro de transaction</label><input name="reference" required minlength="3" maxlength="80" placeholder="ex. 123456789" /></div>
+          <div><label>Ton numéro de téléphone</label><input name="phone" maxlength="30" placeholder="ex. 22 00 00 00" /></div>
+        </div>
+        <button class="btn primary lg" style="margin-top:1.1rem">${ic('check', 18)} J'ai payé, envoyer</button>
+      </form>` : `<p class="muted">Le paiement en ligne n'est pas encore ouvert.${link ? ` <a href="${esc(link)}" target="_blank" rel="noopener">Contacte-nous sur WhatsApp</a>.` : ''}</p>`}
+      <div id="my-payments"></div>
+    </div>` : ''}
+    ${cloud && !Cloud.user() ? `<div class="banner violet">${ic('user', 22)}<span class="grow">Crée ton compte gratuit pour démarrer l'essai et t'abonner.</span><a class="btn sm ai" href="#/compte">Se connecter</a></div>` : ''}`;
+
+  bindTrial();
+  const form = $('#f-pay');
+  if (form) {
+    $$('[data-plan]').forEach((b) => (b.onclick = () => {
+      form.plan.value = b.dataset.plan;
+      $$('[data-plan]').forEach((x) => x.classList.toggle('is-active', x === b));
+    }));
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const f = Object.fromEntries(new FormData(form));
+      const plan = CONFIG.plans.find((p) => p.id === f.plan);
+      busy(form.querySelector('button.primary'), async () => {
+        await Cloud.submitPayment({ plan: plan.id, days: plan.days, amount: plan.price, method: f.method, reference: f.reference.trim(), phone: f.phone.trim() || null });
+        toast('Paiement envoyé', 'Ton abonnement sera activé dès la vérification.');
+        render();
+      }, 'Envoi…');
+    };
+  }
+  if (canPay) {
+    try {
+      const pays = await Cloud.myPayments();
+      const el = $('#my-payments');
+      if (el && pays?.length) {
+        el.innerHTML = `<h3>Mes paiements</h3><ul class="list">${pays.map((p) => {
+          const [cls, label] = PAY_STATUS[p.status] || ['', p.status];
+          return `<li><span class="grow"><b>${p.amount} ${CONFIG.currency}</b> · ${esc(p.method)} · n° ${esc(p.reference)}<div class="small muted">${new Date(p.created_at).toLocaleString('fr-FR')}</div></span><span class="pill ${cls}">${label}</span></li>`;
+        }).join('')}</ul>`;
+      }
+      // Rafraîchit le statut au cas où un paiement vient d'être validé
+      const before = Cloud.getProfile()?.premium_until;
+      await Cloud.refreshProfile();
+      if (Cloud.getProfile()?.premium_until !== before && location.hash.startsWith('#/premium')) render();
+    } catch (e) {
+      console.error(e);
+    }
+  }
+};
+
+// ---------- Compte (connexion / inscription) ----------
+views.compte = (mode = 'connexion') => {
+  if (!cloudEnabled()) {
+    app.innerHTML = `<div class="header"><h1>Mon compte</h1></div><div class="card">${emptyState('user', "Les comptes ne sont pas encore activés sur ce site. Tout fonctionne sans compte : tes données restent dans ton navigateur.")}</div>`;
+    return;
+  }
+  const u = Cloud.user();
+  if (u) {
+    const p = Cloud.getProfile() || {};
+    const st = Plan.status();
+    const usage = Cloud.getUsage();
+    const label = { premium: ['dark', 'Premium'], trial: ['violet', `Essai · ${st.daysLeft} j`], expired: ['danger', 'Essai terminé'], free: ['', 'Gratuit'] }[st.kind] || ['', ''];
+    app.innerHTML = `
+      <div class="header"><h1>Mon compte</h1></div>
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="row" style="gap:1rem">${badge({ icon: 'user', color: '#6c4cf5' }, 56)}<div><b style="font-size:1.15rem">${esc(p.name || '')}</b><div class="muted small">${esc(u.email || p.email || '')}</div></div><span class="grow"></span><span class="pill ${label[0]}">${label[1]}</span></div>
+          <form id="f-acc" style="margin-top:.5rem"><label>Nom affiché</label><input name="name" value="${esc(p.name || '')}" maxlength="60" />
+            <div class="row" style="margin-top:1rem"><button class="btn primary">${ic('check', 18)} Enregistrer</button><button type="button" class="btn danger" id="logout">Se déconnecter</button></div></form>
+        </div>
+        <div class="card violet">
+          <h2>${ic('crown')} Mon abonnement</h2>
+          ${st.kind === 'premium' ? `<p>Premium jusqu'au <b>${fmtDay(st.until)}</b>.</p>` : st.kind === 'trial' ? `<p>Essai gratuit jusqu'au <b>${fmtDay(st.until)}</b>.</p>` : st.kind === 'expired' ? '<p>Ton essai gratuit est terminé.</p>' : `<p>Compte gratuit. Tu peux essayer Premium ${CONFIG.trialDays} jours.</p>`}
+          ${usage ? `<p class="small muted">IA aujourd'hui : ${usage.used} / ${usage.limit} demandes.</p>` : ''}
+          <div class="row">${trialCta(st)}<a class="btn" href="#/premium">${ic('crown', 18)} Voir l'offre</a>${p.is_admin ? `<a class="btn primary" href="#/admin">${ic('settings', 18)} Administration</a>` : ''}</div>
+        </div>
+      </div>`;
+    bindTrial();
+    $('#f-acc').onsubmit = (e) => {
+      e.preventDefault();
+      busy(e.submitter || $('#f-acc button.primary'), async () => {
+        const name = new FormData(e.target).get('name').trim();
+        await Cloud.updateName(name);
+        store.update((s) => (s.profile.name = name || s.profile.name));
+        toast('Compte mis à jour');
+        render();
+      });
+    };
+    // Met à jour l'abonnement (ex. paiement validé entre-temps)
+    if (!views.compte.fresh) {
+      views.compte.fresh = true;
+      Cloud.refreshProfile().then((np) => {
+        if (JSON.stringify(np) !== JSON.stringify(p) && location.hash.startsWith('#/compte')) render();
+      }).catch(() => {}).finally(() => setTimeout(() => (views.compte.fresh = false), 2000));
+    }
+    $('#logout').onclick = async () => {
+      await Cloud.signOut();
+      toast('Tu es déconnecté');
+      render();
+    };
+    return;
+  }
+
+  const titles = { connexion: 'Connexion', inscription: 'Créer un compte', oubli: 'Mot de passe oublié' };
+  app.innerHTML = `
+    <div class="card" style="max-width:460px;margin:2rem auto;padding:2rem">
+      <div style="text-align:center"><span class="logo" style="width:56px;height:56px;margin:0 auto .8rem;border-radius:16px">${ic('cap', 30)}</span>
+      <h1>${titles[mode] || titles.connexion}</h1>
+      <p class="muted small">${mode === 'inscription' ? `Gratuit. L'IA est incluse et tu peux essayer Premium ${CONFIG.trialDays} jours.` : mode === 'oubli' ? 'On t’envoie un lien pour choisir un nouveau mot de passe.' : 'Retrouve ton IA et ton abonnement.'}</p></div>
+      <form id="f-auth">
+        ${mode === 'inscription' ? '<label>Prénom</label><input name="name" required maxlength="60" autocomplete="given-name" />' : ''}
+        <label>E-mail</label><input name="email" type="email" required autocomplete="email" />
+        ${mode !== 'oubli' ? `<label>Mot de passe</label><input name="password" type="password" required minlength="6" autocomplete="${mode === 'inscription' ? 'new-password' : 'current-password'}" />` : ''}
+        <button class="btn primary lg" style="width:100%;margin-top:1.2rem">${mode === 'inscription' ? 'Créer mon compte' : mode === 'oubli' ? 'Envoyer le lien' : 'Se connecter'}</button>
+      </form>
+      <div class="row small" style="justify-content:center;margin-top:1rem;gap:1rem">
+        ${mode !== 'connexion' ? '<a href="#/compte/connexion">J’ai déjà un compte</a>' : '<a href="#/compte/inscription">Créer un compte</a>'}
+        ${mode !== 'oubli' ? '<a href="#/compte/oubli">Mot de passe oublié ?</a>' : ''}
       </div>
     </div>`;
-  $('#trial')?.addEventListener('click', () => {
-    Plan.startTrial();
-    toast('Essai Premium activé', `${CONFIG.trialDays} jours pour générer tes TP et TD. Ouvre un cours puis l'onglet « TP / TD corrigés ».`);
-    render();
+  const form = $('#f-auth');
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(form));
+    busy(form.querySelector('button'), async () => {
+      if (mode === 'inscription') {
+        const r = await Cloud.signUp(f.email.trim(), f.password, f.name.trim());
+        if (!r.confirmed) {
+          form.outerHTML = `<div class="banner">${ic('checkCircle', 22)}<span>Compte créé ! Ouvre l'e-mail de confirmation envoyé à <b>${esc(f.email)}</b>, puis reviens te connecter.</span></div>`;
+          return;
+        }
+        store.update((s) => (s.profile.name = s.profile.name || f.name.trim()));
+        toast('Bienvenue sur StudyFlow !');
+        location.hash = '#/';
+      } else if (mode === 'oubli') {
+        await Cloud.recover(f.email.trim());
+        form.outerHTML = `<div class="banner">${ic('checkCircle', 22)}<span>Si un compte existe pour cet e-mail, un lien vient d'être envoyé.</span></div>`;
+      } else {
+        await Cloud.signIn(f.email.trim(), f.password);
+        const name = Cloud.getProfile()?.name;
+        store.update((s) => (s.profile.name = s.profile.name || name || ''));
+        toast('Connecté', name ? `Content de te revoir, ${name} !` : '');
+        location.hash = '#/';
+      }
+    }, 'Patiente…');
+  };
+};
+
+function passwordModal() {
+  modal(`<h2>${ic('lock')} Nouveau mot de passe</h2>
+    <form id="f-pw"><label>Mot de passe (6 caractères minimum)</label><input name="password" type="password" minlength="6" required autocomplete="new-password" />
+    <div class="row" style="margin-top:1.2rem;justify-content:flex-end"><button class="btn primary">${ic('check', 18)} Enregistrer</button></div></form>`, (dlg) => {
+    $('#f-pw', dlg).onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await Cloud.updatePassword(new FormData(e.target).get('password'));
+        dlg.close();
+        toast('Mot de passe modifié');
+      } catch (err) {
+        toast('Oups', err.message);
+      }
+    };
   });
+}
+
+// ---------- Administration (validation des paiements) ----------
+views.admin = async (tab = 'pending') => {
+  if (!cloudEnabled() || !Cloud.getProfile()?.is_admin) {
+    app.innerHTML = `<div class="card">${emptyState('lock', 'Page réservée à l’administrateur.')}</div>`;
+    return;
+  }
+  app.innerHTML = `
+    <div class="header"><h1>Administration</h1><div class="muted">Valide les paiements pour activer les abonnements.</div></div>
+    <div class="grid grid-4" id="stats" style="margin-bottom:1.1rem"></div>
+    <div class="tabs">${[['pending', 'clock', 'À valider'], ['approved', 'check', 'Validés'], ['rejected', 'x', 'Refusés']].map(([k, i, l]) => `<button data-t="${k}" class="${tab === k ? 'active' : ''}">${ic(i, 18)} ${l}</button>`).join('')}</div>
+    <div class="card" id="pay-list"><span class="spinner"></span> Chargement…</div>`;
+  $$('[data-t]').forEach((b) => (b.onclick = () => (location.hash = `#/admin/${b.dataset.t}`)));
+  try {
+    const [stats, pays] = await Promise.all([Cloud.adminStats(), Cloud.adminPayments(tab)]);
+    $('#stats').innerHTML = [['user', stats.users, 'inscrits', '#3aa6e0'], ['crown', stats.premium, 'abonnés', '#6c4cf5'], ['clock', stats.pending, 'paiements à valider', '#d98a1c'], ['chart', `${stats.revenue_month}`, `${CONFIG.currency} ce mois-ci`, '#15936b']]
+      .map(([i, v, l, c]) => `<div class="card stat-card" style="margin:0">${badge({ icon: i, color: c }, 44)}<div><div class="stat">${v}</div><div class="small muted">${l}</div></div></div>`).join('');
+    $('#pay-list').innerHTML = pays.length ? `<ul class="list">${pays.map((p) => `
+      <li><span class="grow"><b>${esc(p.profiles?.name || '')}</b> <span class="small muted">${esc(p.profiles?.email || '')}</span>
+        <div class="small"><b>${p.amount} ${CONFIG.currency}</b> · ${esc(p.plan)} (${p.days} j) · ${esc(p.method)} · transaction <b>${esc(p.reference)}</b>${p.phone ? ` · tél. ${esc(p.phone)}` : ''}</div>
+        <div class="small muted">${new Date(p.created_at).toLocaleString('fr-FR')}${p.profiles?.premium_until ? ` · Premium jusqu'au ${fmtDay(p.profiles.premium_until)}` : ''}</div></span>
+        ${p.status === 'pending' ? `<button class="btn sm primary" data-ok="${p.id}" data-days="${p.days}">${ic('check', 16)} Valider</button><button class="btn sm danger" data-no="${p.id}">${ic('x', 16)} Refuser</button>` : `<span class="pill ${PAY_STATUS[p.status][0]}">${PAY_STATUS[p.status][1]}</span>`}</li>`).join('')}</ul>`
+      : emptyState('checkCircle', tab === 'pending' ? 'Aucun paiement à valider.' : 'Rien ici pour l’instant.');
+    $$('[data-ok]').forEach((b) => (b.onclick = () => busy(b, async () => {
+      await Cloud.approvePayment(b.dataset.ok, Number(b.dataset.days));
+      toast('Paiement validé', 'Abonnement activé.');
+      render();
+    }, '…')));
+    $$('[data-no]').forEach((b) => (b.onclick = () => {
+      if (!confirm('Refuser ce paiement ?')) return;
+      busy(b, async () => {
+        await Cloud.rejectPayment(b.dataset.no);
+        render();
+      }, '…');
+    }));
+  } catch (e) {
+    $('#pay-list').innerHTML = `<p style="color:var(--danger)">${esc(e.message)}</p>`;
+  }
 };
 
 // ---------- Paramètres ----------
@@ -1080,7 +1320,11 @@ views.parametres = () => {
       </form>
     </div>
     </div>
-    <div class="card violet">
+    ${cloudEnabled() ? `<div class="card violet">
+      <h2>${ic('sparkles')} Intelligence artificielle</h2>
+      <p class="small muted">L'IA est incluse avec ton compte StudyFlow : résumé détaillé, correction, indices, « Explique-moi » et, en Premium, TP/TD corrigés.</p>
+      <a class="btn ${Cloud.user() ? '' : 'ai'}" href="#/compte">${ic('user', 18)} ${Cloud.user() ? 'Mon compte' : 'Se connecter'}</a>
+    </div>` : `<div class="card violet">
       <h2>${ic('sparkles')} Intelligence artificielle</h2>
       <p class="small muted">Sans clé : analyse automatique des PDF, fiches, emploi du temps et rappels. Avec une clé API Claude (Anthropic) : résumé détaillé du cours, correction des exercices, indices, « Explique-moi » et TP/TD corrigés.
       Crée ta clé sur <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. Elle reste <b>uniquement dans ce navigateur</b>.</p>
@@ -1092,7 +1336,7 @@ views.parametres = () => {
         </div>
         <div class="row" style="margin-top:1rem"><button class="btn primary">${ic('check', 18)} Enregistrer</button><button type="button" class="btn ai" id="test-ai">${ic('sparkles', 18)} Tester la clé</button></div>
       </form>
-    </div>
+    </div>`}
     <div class="card">
       <h2>${ic('download')} Mes données</h2>
       <p class="small muted">Tout est stocké dans ce navigateur. Exporte une sauvegarde pour changer d'appareil.</p>
@@ -1109,16 +1353,16 @@ views.parametres = () => {
     });
     toast('Profil enregistré');
   };
-  $('#f-ai').onsubmit = (e) => {
+  if ($('#f-ai')) $('#f-ai').onsubmit = (e) => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     store.update((st) => Object.assign(st.settings, { apiKey: f.apiKey.trim(), model: f.model }));
     toast('Paramètres IA enregistrés');
   };
-  $('#test-ai').onclick = (e) => busy(e.currentTarget, async () => {
+  if ($('#test-ai')) $('#test-ai').onclick = (e) => busy(e.currentTarget, async () => {
     const f = Object.fromEntries(new FormData($('#f-ai')));
     store.update((st) => Object.assign(st.settings, { apiKey: f.apiKey.trim(), model: f.model }));
-    const r = await AI.ask({ system: 'Réponds en une phrase courte.', prompt: 'Dis bonjour à un étudiant qui commence à utiliser StudyFlow.', maxTokens: 80 });
+    const r = await AI.ping();
     toast('La clé fonctionne', r);
   }, 'Test…');
   $('#f-notif').onsubmit = (e) => {
@@ -1181,12 +1425,29 @@ function render() {
 }
 
 let lastHash = location.hash;
+async function init() {
+  if (cloudEnabled()) {
+    try {
+      const r = await Cloud.handleRedirect();
+      if (r?.error) toast('Lien invalide ou expiré', r.error);
+      else if (r?.type === 'recovery') setTimeout(passwordModal, 300);
+      else if (r) toast('E-mail confirmé', 'Bienvenue sur StudyFlow !');
+      if (Cloud.user() && !r) Cloud.refreshProfile().then(render).catch(() => {});
+      const name = Cloud.getProfile()?.name;
+      if (name && !S().profile.name) store.update((st) => (st.profile.name = name));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  render();
+}
+
 window.addEventListener('hashchange', () => {
   render();
   if (location.hash.split('/')[1] !== lastHash.split('/')[1] || !location.hash.includes(lastHash.split('/')[2] || '§')) window.scrollTo(0, 0);
   lastHash = location.hash;
 });
-render();
+init();
 
 // Horloge, minuteur et vérification des rappels
 function clock() {

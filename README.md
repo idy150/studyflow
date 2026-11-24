@@ -26,11 +26,16 @@ StudyFlow est un site 100 % statique (HTML, CSS, JavaScript) : il s'héberge gra
 - **Sans clé** : l'analyse locale repère automatiquement les formules, les blocs de code, les définitions et les mots-clés, et produit un résumé extractif.
 - **Avec une clé API Claude** (Paramètres → Intelligence artificielle) : résumé expliqué, explication des codes, vraies questions d'examen, correction des exercices, indices et mode « Explique-moi ». La clé est enregistrée uniquement dans le navigateur de l'étudiant et envoyée seulement à `api.anthropic.com`.
 
-## 👑 Offre Premium
+## 👑 Comptes et offre Premium
 
-Les réglages (durée d'essai, prix, contact WhatsApp ou e-mail pour s'abonner) sont dans `js/config.js`.
+StudyFlow fonctionne en deux modes :
 
-⚠️ Tant qu'il n'y a pas de serveur, l'essai et l'accès Premium sont gérés dans le navigateur de l'étudiant : c'est une vitrine de l'offre, pas un verrou sécurisé. Le vrai contrôle (comptes, paiement vérifié, clé IA côté serveur) est l'étape suivante.
+- **Mode simple** (par défaut, sans serveur) : pas de compte, chaque étudiant colle sa propre clé IA dans Paramètres. L'essai Premium est gardé dans le navigateur (contournable) : c'est une démo de l'offre.
+- **Mode comptes** (avec Supabase) : inscription par e-mail, IA incluse avec **ta** clé cachée sur le serveur, essai de 7 jours et abonnement **vérifiés par le serveur**, quotas IA par jour, paiement Bankily / Masrvi / Sedad validé depuis une page **Administration**.
+
+👉 Pour activer le mode comptes, suis le guide **[SUPABASE.md](SUPABASE.md)** (environ 20 minutes, rien à installer).
+
+Prix, formules, numéros de paiement et contact : `js/config.js`.
 
 ## 🚀 Mettre le site en ligne (GitHub Pages)
 
@@ -57,7 +62,12 @@ css/style.css       design (clair/sombre, mobile)
 js/app.js           pages et navigation
 js/icons.js         icônes SVG
 js/plan.js          essai gratuit / Premium
-js/config.js        prix, durée d'essai, contact
+js/config.js        Supabase, prix, formules, paiement
+js/cloud.js         comptes et abonnement (API Supabase)
+js/prompts.js       prompts de l'IA (partagés avec le serveur)
+supabase/schema.sql tables, sécurité et fonctions SQL
+supabase/functions/ai/index.ts  serveur IA (généré depuis js/prompts.js)
+tools/              génération du serveur IA
 js/store.js         données (localStorage)
 js/analyze.js       lecture des PDF + analyse locale
 js/ai.js            appels à l'IA
@@ -66,12 +76,12 @@ js/demo.js          données d'exemple
 vendor/             pdf.js (Mozilla, Apache 2.0)
 ```
 
-## ⚠️ Limites connues de la V1
+## ⚠️ Limites connues
 
-- Les notifications arrivent tant qu'un onglet StudyFlow est ouvert (même en arrière-plan). Des notifications avec le site fermé demanderaient un serveur (V2).
+- Les notifications arrivent tant qu'un onglet StudyFlow est ouvert (même en arrière-plan). Des notifications avec le site fermé demanderaient des notifications push (à venir).
 - Les PDF scannés (images) ne contiennent pas de texte : il faut un PDF texte ou coller le contenu.
-- Les données sont propres à chaque navigateur : utilise l'export pour les transférer.
+- Les cours, exercices et l’emploi du temps restent dans le navigateur (même en mode comptes) : utilise l’export pour changer d’appareil.
 
-## 🛣️ Idées pour la V2
+## 🛣️ Idées pour la suite
 
-Comptes et synchronisation (Supabase), mode examen avec QCM chronométré, détection des points faibles, gamification (XP, niveaux), application mobile (PWA), import d'emploi du temps depuis une photo.
+Synchronisation des cours entre appareils, paiement en ligne automatique, mode examen avec QCM chronométré, détection des points faibles, gamification (XP, niveaux), application mobile (PWA), import d'emploi du temps depuis une photo.
